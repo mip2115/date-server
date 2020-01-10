@@ -1,0 +1,306 @@
+const User = require("../../models/User");
+const ProfilePicture = require("../../models/ProfilePicture");
+const express = require("express");
+const bcrypt = require("bcryptjs");
+const uuidv4 = require("uuid/v4");
+const jwt = require("jsonwebtoken");
+const { Validator } = require("node-input-validator");
+const images = require("../../aws/s3/images");
+const types = require("../../types/types");
+const tokenAuthorizer = require("../../middleware/auth");
+const aws = require("aws-sdk");
+
+var salt = bcrypt.genSaltSync(10);
+require("dotenv").config();
+const router = express.Router();
+
+const sleep = milliseconds => {
+  return new Promise(resolve => setTimeout(resolve, milliseconds));
+};
+
+// @route   DELETE api/user/deleteImage
+// @desc    Delete image from user's account
+// access   Private
+
+// @route   POST api/user/uploadImage
+// @desc    Upload image to user's account
+// access   Private
+router.post("/uploadImage", tokenAuthorizer, async (req, res) => {
+  const { rank, base64 } = req.body;
+  const userID = req.id;
+
+  // TODO - convert images to JPG if not already
+  await sleep(4000);
+  try {
+    const imageID = uuidv4();
+    let buff = new Buffer(base64, "base64");
+    const key = `public/${userID}/${imageID}.jpg`;
+
+    const user = await User.findOne({ _id: userID });
+    // TODO – verify it actuall is a jpeg
+    var params = {
+      Bucket: process.env.BUCKET_NAME,
+      Key: key,
+      Body: buff,
+      ContentType: "image/jpeg"
+    };
+
+    const link = `${process.env.BUCKET_NAME}.s3.amazonaws.com/${key}`;
+    const result = await images.uploadProfilePictureToS3(params);
+    const profilePicture = {
+      imageID: imageID,
+      rank: rank,
+      link: link
+    };
+    user.profilePictures.push(profilePicture);
+
+    await user.save();
+    res.json({ msg: user });
+  } catch (e) {
+    console.log(e.message);
+    res.status(500).json({ msg: e.message });
+  }
+});
+
+// @route   POST api/user/updateInfo
+// @desc    Update a user's account
+// access   Private
+// TODO – make a separate update function for
+// profile pics, articles,
+router.post("/updateInfo", tokenAuthorizer, async (req, res) => {
+  let {
+    name,
+    email,
+    password,
+    age,
+    university,
+    ageMin,
+    ageMax,
+    preference,
+    gender
+  } = req.body;
+
+  try {
+    const id = req.id;
+    const user = await User.findOne({ _id: id });
+
+    const v = new Validator(req.body, {
+      email: "email",
+      ageMin: "numeric",
+      ageMax: "numeric"
+    });
+
+    if (ageMax != null && ageMin != null && ageMin > ageMax)
+      throw new Error("ageMin cannot be more than ageMax");
+
+    const matched = await v.check();
+    if (!matched) {
+      res.status(500).json({ msg: v.errors });
+      return;
+    }
+
+    if (name != null) {
+      user.name = name;
+    }
+    if (email != null) user.email = email;
+    if (password != null) user.password = password;
+    if (age != null) user.age = age;
+    if (university != null) user.university = university;
+    if (ageMin != null) user.ageMin = ageMin;
+    if (ageMax != null) user.ageMax = ageMax;
+    if (preference != null) {
+      preference = preference.toUpperCase();
+
+      if (
+        preference != types.MEN &&
+        preference != types.WOMEN &&
+        preference != types.BOTH
+      )
+        throw new Error("Preference type not allowed");
+      user.preference = preference;
+    }
+    if (gender != null) {
+      gender = gender.toUpperCase();
+      if (gender != types.MAN && gender != types.WOMAN)
+        throw new Error("Gender type not allowed");
+      user.gender = gender;
+    }
+
+    await user.save();
+    res.json({ msg: user });
+  } catch (e) {
+    console.log(e.message);
+    res.status(500).json({ msg: e.message });
+  }
+});
+
+// validate through email or text
+// this should also be a protected route
+router.post("/validate", tokenAuthorizer, async (req, res) => {
+  let {
+    /* profilePictures*/
+    articles,
+    university,
+    gender,
+    preference
+  } = req.body;
+
+  try {
+    gender = gender.toUpperCase();
+    preference = preference.toUpperCase();
+
+    const id = req.id;
+    const v = new Validator(req.body, {
+      university: "required",
+      gender: "required",
+      preference: "required"
+    });
+
+    const matched = await v.check();
+    if (!matched) {
+      res.status(500).json({ msg: v.errors });
+      return;
+    }
+
+    if (articles.length != 3) throw new Error("Only 3 articles allowed");
+    //if (profilePictures.length != 5) throw new Error("Only 5 pictures allowed");
+    if (gender != types.MAN && gender != types.WOMAN)
+      throw new Error("Gender type not allowed");
+
+    if (
+      preference != types.MEN &&
+      preference != types.WOMEN &&
+      prference != types.BOTH
+    )
+      throw new Error("Preference type not allowed");
+
+    const user = await User.findOne({ _id: id }).select("-password");
+    if (!user) {
+      throw new Error("Couldn't find this user");
+    }
+
+    // public/id/pictureID
+
+    // you should make uploading pictures its own thing
+    user.articles = articles;
+    user.university = university; // TODO – change to profression
+    user.gender = gender;
+    user.preference = preference;
+
+    await user.save();
+
+    user.verified = true;
+    user.visible = true;
+    user.activated = true;
+    await user.save();
+    res.json({ msg: user });
+  } catch (e) {
+    console.log(e.message);
+    res.status(500).json({ msg: e.message });
+    return;
+  }
+});
+
+// this is just logging in
+// you can create middleware to make sure
+// that they are validated
+// so do first auth to put the user in the req
+// and then do validate to check whether the user is validated or not
+router.post("/login", async (req, res) => {
+  const { password, email } = req.body;
+
+  try {
+    const v = new Validator(req.body, {
+      email: "required|email",
+      password: "required"
+    });
+    const matched = await v.check();
+    if (!matched) {
+      res.status(500).json(v.errors);
+      return;
+    }
+  } catch (e) {
+    console.log(e.message);
+    res.status(500).json({ msg: e.message });
+  }
+
+  const user = await User.findOne({ email: email });
+  if (!user) res.json({ msg: "couldn't find your email" });
+
+  // now check the password
+  const matched = await bcrypt.compare(password, user.password);
+  if (!matched) res.json({ msg: "wrong password" });
+
+  const payload = {
+    id: user.id
+  };
+
+  try {
+    const token = jwt.sign(payload, process.env.JWT_SECRET, {
+      expiresIn: 300000000
+    });
+    res.json({ msg: token });
+  } catch (e) {
+    console.log(e.message);
+    res.status(500).send({ msg: e.message });
+  }
+});
+
+router.post("/create", async (req, res) => {
+  // get this info and then validate rest of the info
+  // with antoher info
+  const { password, email, name, age } = req.body;
+
+  try {
+    const v = new Validator(req.body, {
+      email: "required|email",
+      password: "required",
+      age: "required|numeric",
+      name: "required|alpha"
+    });
+    const matched = await v.check();
+    if (!matched) {
+      res.status(500).json(v.errors);
+      return;
+    }
+  } catch (e) {
+    console.log(e.message);
+    res.status(500).json({ msg: e.message });
+  }
+  try {
+    var hashedPassword = bcrypt.hashSync(password, salt);
+    const user = new User({
+      email: email,
+      password: hashedPassword,
+      name: name,
+      age: age
+    });
+    await user.save();
+
+    const payload = {
+      user: {
+        id: user.id
+      }
+    };
+
+    jwt.sign(
+      payload,
+      process.env.JWT_SECRET,
+      { expiresIn: 30000000 },
+      (err, token) => {
+        if (err) throw err;
+        return res.json({ token: token });
+      }
+    );
+  } catch (e) {
+    console.log(e.message);
+    res.status(500).json({ msg: e.message });
+  }
+});
+
+router.get("/test", async (req, res) => {
+  const a = 35;
+  const s = `I am ${a} today`;
+  res.json(s);
+});
+module.exports = router;
