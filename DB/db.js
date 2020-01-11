@@ -1,6 +1,9 @@
 const mongoose = require("mongoose");
 require("dotenv").config();
 
+// TODO – change to use the mongo client
+// for reliable reconnection
+
 // this is basically a dict
 const db = process.env.MONGO_URI;
 

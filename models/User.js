@@ -1,8 +1,6 @@
 const mongoose = require("mongoose");
 const types = require("../types/types");
 
-const ProfilePicture = require("./ProfilePicture");
-
 const UserSchema = new mongoose.Schema({
   name: {
     type: String,
@@ -21,7 +19,7 @@ const UserSchema = new mongoose.Schema({
     type: Number,
     required: true
   },
-  profilePictures: [ProfilePicture],
+  pictures: [],
   chats: {
     type: [String],
     default: []
@@ -68,6 +66,13 @@ const UserSchema = new mongoose.Schema({
   },
   activated: {
     type: Boolean,
+    default: false
+  },
+  zipcode: {
+    type: String
+  },
+  servedMatches: {
+    type: boolean,
     default: false
   }
 });

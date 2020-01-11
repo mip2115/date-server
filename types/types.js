@@ -1,3 +1,6 @@
+const schema = require("schm");
+const { validate } = schema;
+
 module.exports = {
   MEN: "MEN",
   WOMEN: "WOMEN",

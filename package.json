@@ -19,6 +19,7 @@
     "mongoose": "^5.8.6",
     "node-input-validator": "^4.1.0",
     "nodemon": "^2.0.2",
+    "schm": "^0.4.1",
     "uuid": "^3.3.3"
   }
 }

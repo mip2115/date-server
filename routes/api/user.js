@@ -1,5 +1,5 @@
 const User = require("../../models/User");
-const ProfilePicture = require("../../models/ProfilePicture");
+const errors = require("../../errors/errors");
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const uuidv4 = require("uuid/v4");
@@ -17,50 +17,6 @@ const router = express.Router();
 const sleep = milliseconds => {
   return new Promise(resolve => setTimeout(resolve, milliseconds));
 };
-
-// @route   DELETE api/user/deleteImage
-// @desc    Delete image from user's account
-// access   Private
-
-// @route   POST api/user/uploadImage
-// @desc    Upload image to user's account
-// access   Private
-router.post("/uploadImage", tokenAuthorizer, async (req, res) => {
-  const { rank, base64 } = req.body;
-  const userID = req.id;
-
-  // TODO - convert images to JPG if not already
-  await sleep(4000);
-  try {
-    const imageID = uuidv4();
-    let buff = new Buffer(base64, "base64");
-    const key = `public/${userID}/${imageID}.jpg`;
-
-    const user = await User.findOne({ _id: userID });
-    // TODO – verify it actuall is a jpeg
-    var params = {
-      Bucket: process.env.BUCKET_NAME,
-      Key: key,
-      Body: buff,
-      ContentType: "image/jpeg"
-    };
-
-    const link = `${process.env.BUCKET_NAME}.s3.amazonaws.com/${key}`;
-    const result = await images.uploadProfilePictureToS3(params);
-    const profilePicture = {
-      imageID: imageID,
-      rank: rank,
-      link: link
-    };
-    user.profilePictures.push(profilePicture);
-
-    await user.save();
-    res.json({ msg: user });
-  } catch (e) {
-    console.log(e.message);
-    res.status(500).json({ msg: e.message });
-  }
-});
 
 // @route   POST api/user/updateInfo
 // @desc    Update a user's account
@@ -249,6 +205,7 @@ router.post("/login", async (req, res) => {
 router.post("/create", async (req, res) => {
   // get this info and then validate rest of the info
   // with antoher info
+  console.log("A");
   const { password, email, name, age } = req.body;
 
   try {
@@ -299,8 +256,14 @@ router.post("/create", async (req, res) => {
 });
 
 router.get("/test", async (req, res) => {
+  const error = new errors.CustomError("This is a new error");
+  console.log(error.message);
+  if (error instanceof errors.CustomError) console.log("Yes");
+  else console.log("False");
+
   const a = 35;
   const s = `I am ${a} today`;
   res.json(s);
 });
+
 module.exports = router;
