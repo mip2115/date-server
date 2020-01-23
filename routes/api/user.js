@@ -1,21 +1,24 @@
-const User = require("../../models/User");
-const errors = require("../../errors/errors");
-const express = require("express");
-const bcrypt = require("bcryptjs");
-const uuidv4 = require("uuid/v4");
-const jwt = require("jsonwebtoken");
-const { Validator } = require("node-input-validator");
-const images = require("../../aws/s3/images");
-const types = require("../../types/types");
-const tokenAuthorizer = require("../../middleware/auth");
-const aws = require("aws-sdk");
+const User = require('../../models/User');
+const errors = require('../../errors/errors');
+const express = require('express');
+const bcrypt = require('bcryptjs');
+const uuidv4 = require('uuid/v4');
+const jwt = require('jsonwebtoken');
+const { Validator } = require('node-input-validator');
+const images = require('../../aws/s3/images');
+const types = require('../../types/types');
+const tokenAuthorizer = require('../../middleware/auth');
+const aws = require('aws-sdk');
+const mongoose = require('mongoose');
+const { conf } = require('../../config/config');
+const database = require('../../DB/db');
 
 var salt = bcrypt.genSaltSync(10);
-require("dotenv").config();
+require('dotenv').config();
 const router = express.Router();
 
-const sleep = milliseconds => {
-  return new Promise(resolve => setTimeout(resolve, milliseconds));
+const sleep = (milliseconds) => {
+	return new Promise((resolve) => setTimeout(resolve, milliseconds));
 };
 
 // @route   POST api/user/updateInfo
@@ -23,138 +26,121 @@ const sleep = milliseconds => {
 // access   Private
 // TODO – make a separate update function for
 // profile pics, articles,
-router.post("/updateInfo", tokenAuthorizer, async (req, res) => {
-  let {
-    name,
-    email,
-    password,
-    age,
-    university,
-    ageMin,
-    ageMax,
-    preference,
-    gender
-  } = req.body;
+router.post('/updateInfo', tokenAuthorizer, async (req, res) => {
+	let { name, email, password, age, university, ageMin, ageMax, preference, gender } = req.body;
 
-  try {
-    const id = req.id;
-    const user = await User.findOne({ _id: id });
+	try {
+		const db = await database.openConnection();
+		const id = req.id;
+		const user = await User.findOne({ _id: id });
 
-    const v = new Validator(req.body, {
-      email: "email",
-      ageMin: "numeric",
-      ageMax: "numeric"
-    });
+		const v = new Validator(req.body, {
+			email: 'email',
+			ageMin: 'numeric',
+			ageMax: 'numeric'
+		});
 
-    if (ageMax != null && ageMin != null && ageMin > ageMax)
-      throw new Error("ageMin cannot be more than ageMax");
+		if (ageMax != null && ageMin != null && ageMin > ageMax) throw new Error('ageMin cannot be more than ageMax');
 
-    const matched = await v.check();
-    if (!matched) {
-      res.status(500).json({ msg: v.errors });
-      return;
-    }
+		const matched = await v.check();
+		if (!matched) {
+			res.status(500).json({ msg: v.errors });
+			return;
+		}
 
-    if (name != null) {
-      user.name = name;
-    }
-    if (email != null) user.email = email;
-    if (password != null) user.password = password;
-    if (age != null) user.age = age;
-    if (university != null) user.university = university;
-    if (ageMin != null) user.ageMin = ageMin;
-    if (ageMax != null) user.ageMax = ageMax;
-    if (preference != null) {
-      preference = preference.toUpperCase();
+		if (name != null) {
+			user.name = name;
+		}
+		if (email != null) user.email = email;
+		if (password != null) user.password = password;
+		if (age != null) user.age = age;
+		if (university != null) user.university = university;
+		if (ageMin != null) user.ageMin = ageMin;
+		if (ageMax != null) user.ageMax = ageMax;
+		if (preference != null) {
+			preference = preference.toUpperCase();
 
-      if (
-        preference != types.MEN &&
-        preference != types.WOMEN &&
-        preference != types.BOTH
-      )
-        throw new Error("Preference type not allowed");
-      user.preference = preference;
-    }
-    if (gender != null) {
-      gender = gender.toUpperCase();
-      if (gender != types.MAN && gender != types.WOMAN)
-        throw new Error("Gender type not allowed");
-      user.gender = gender;
-    }
+			if (preference != types.MEN && preference != types.WOMEN && preference != types.BOTH)
+				throw new Error('Preference type not allowed');
+			user.preference = preference;
+		}
+		if (gender != null) {
+			gender = gender.toUpperCase();
+			if (gender != types.MAN && gender != types.WOMAN) throw new Error('Gender type not allowed');
+			user.gender = gender;
+		}
 
-    await user.save();
-    res.json({ msg: user });
-  } catch (e) {
-    console.log(e.message);
-    res.status(500).json({ msg: e.message });
-  }
+		await user.save();
+		res.json({ msg: user });
+	} catch (e) {
+		console.log(e.message);
+		res.status(500).json({ msg: e.message });
+	}
+	await database.closeConnection(db);
 });
 
 // validate through email or text
 // this should also be a protected route
-router.post("/validate", tokenAuthorizer, async (req, res) => {
-  let {
-    /* profilePictures*/
-    articles,
-    university,
-    gender,
-    preference
-  } = req.body;
+router.post('/validate', tokenAuthorizer, async (req, res) => {
+	let {
+		/* profilePictures*/
+		articles,
+		university,
+		gender,
+		preference
+	} = req.body;
 
-  try {
-    gender = gender.toUpperCase();
-    preference = preference.toUpperCase();
+	try {
+		const db = await database.openConnection();
+		gender = gender.toUpperCase();
+		preference = preference.toUpperCase();
 
-    const id = req.id;
-    const v = new Validator(req.body, {
-      university: "required",
-      gender: "required",
-      preference: "required"
-    });
+		const id = req.id;
+		const v = new Validator(req.body, {
+			university: 'required',
+			gender: 'required',
+			preference: 'required'
+		});
 
-    const matched = await v.check();
-    if (!matched) {
-      res.status(500).json({ msg: v.errors });
-      return;
-    }
+		const matched = await v.check();
+		if (!matched) {
+			res.status(500).json({ msg: v.errors });
+			return;
+		}
 
-    if (articles.length != 3) throw new Error("Only 3 articles allowed");
-    //if (profilePictures.length != 5) throw new Error("Only 5 pictures allowed");
-    if (gender != types.MAN && gender != types.WOMAN)
-      throw new Error("Gender type not allowed");
+		const db = await database.openConnection();
+		if (articles.length != 3) throw new Error('Only 3 articles allowed');
+		//if (profilePictures.length != 5) throw new Error("Only 5 pictures allowed");
+		if (gender != types.MAN && gender != types.WOMAN) throw new Error('Gender type not allowed');
 
-    if (
-      preference != types.MEN &&
-      preference != types.WOMEN &&
-      prference != types.BOTH
-    )
-      throw new Error("Preference type not allowed");
+		if (preference != types.MEN && preference != types.WOMEN && prference != types.BOTH)
+			throw new Error('Preference type not allowed');
 
-    const user = await User.findOne({ _id: id }).select("-password");
-    if (!user) {
-      throw new Error("Couldn't find this user");
-    }
+		const user = await User.findOne({ _id: id }).select('-password');
+		if (!user) {
+			throw new Error("Couldn't find this user");
+		}
 
-    // public/id/pictureID
+		// public/id/pictureID
 
-    // you should make uploading pictures its own thing
-    user.articles = articles;
-    user.university = university; // TODO – change to profression
-    user.gender = gender;
-    user.preference = preference;
+		// you should make uploading pictures its own thing
+		user.articles = articles;
+		user.university = university; // TODO – change to profression
+		user.gender = gender;
+		user.preference = preference;
 
-    await user.save();
+		await user.save();
 
-    user.verified = true;
-    user.visible = true;
-    user.activated = true;
-    await user.save();
-    res.json({ msg: user });
-  } catch (e) {
-    console.log(e.message);
-    res.status(500).json({ msg: e.message });
-    return;
-  }
+		user.verified = true;
+		user.visible = true;
+		user.activated = true;
+		await user.save();
+		res.json({ msg: user });
+	} catch (e) {
+		console.log(e.message);
+		res.status(500).json({ msg: e.message });
+	}
+	await database.closeConnection(db);
 });
 
 // this is just logging in
@@ -162,108 +148,139 @@ router.post("/validate", tokenAuthorizer, async (req, res) => {
 // that they are validated
 // so do first auth to put the user in the req
 // and then do validate to check whether the user is validated or not
-router.post("/login", async (req, res) => {
-  const { password, email } = req.body;
+router.post('/login', async (req, res) => {
+	const { password, email } = req.body;
 
-  try {
-    const v = new Validator(req.body, {
-      email: "required|email",
-      password: "required"
-    });
-    const matched = await v.check();
-    if (!matched) {
-      res.status(500).json(v.errors);
-      return;
-    }
-  } catch (e) {
-    console.log(e.message);
-    res.status(500).json({ msg: e.message });
-  }
+	try {
+		const db = await database.openConnection();
+		const v = new Validator(req.body, {
+			email: 'required|email',
+			password: 'required'
+		});
+		const matched = await v.check();
+		if (!matched) {
+			res.status(500).json(v.errors);
+			return;
+		}
+	} catch (e) {
+		console.log(e.message);
+		res.status(500).json({ msg: e.message });
+	}
 
-  const user = await User.findOne({ email: email });
-  if (!user) res.json({ msg: "couldn't find your email" });
+	const user = await User.findOne({ email: email });
+	if (!user) res.json({ msg: "couldn't find your email" });
 
-  // now check the password
-  const matched = await bcrypt.compare(password, user.password);
-  if (!matched) res.json({ msg: "wrong password" });
+	// now check the password
+	const matched = await bcrypt.compare(password, user.password);
+	if (!matched) res.json({ msg: 'wrong password' });
 
-  const payload = {
-    id: user.id
-  };
+	const payload = {
+		id: user.id
+	};
 
-  try {
-    const token = jwt.sign(payload, process.env.JWT_SECRET, {
-      expiresIn: 300000000
-    });
-    res.json({ msg: token });
-  } catch (e) {
-    console.log(e.message);
-    res.status(500).send({ msg: e.message });
-  }
+	try {
+		const token = jwt.sign(payload, process.env.JWT_SECRET, {
+			expiresIn: 300000000
+		});
+		res.json({ msg: token });
+	} catch (e) {
+		console.log(e.message);
+		res.status(500).send({ msg: e.message });
+	}
+	await database.closeConnection(db);
 });
 
-router.post("/create", async (req, res) => {
-  // get this info and then validate rest of the info
-  // with antoher info
-  console.log("A");
-  const { password, email, name, age } = req.body;
+router.post('/create', async (req, res) => {
+	const db = await database.openConnection();
+	// get this info and then validate rest of the info
+	// with antoher info
 
-  try {
-    const v = new Validator(req.body, {
-      email: "required|email",
-      password: "required",
-      age: "required|numeric",
-      name: "required|alpha"
-    });
-    const matched = await v.check();
-    if (!matched) {
-      res.status(500).json(v.errors);
-      return;
-    }
-  } catch (e) {
-    console.log(e.message);
-    res.status(500).json({ msg: e.message });
-  }
-  try {
-    var hashedPassword = bcrypt.hashSync(password, salt);
-    const user = new User({
-      email: email,
-      password: hashedPassword,
-      name: name,
-      age: age
-    });
-    await user.save();
+	// connect with DB
+	/*
+	let database = null;
+	try {
+		const db = conf.MONGO_URI;
+		console.log('Connecting to DB...');
+		database = await mongoose.connect(db, {
+			useNewUrlParser: true,
+			useCreateIndex: true,
+			useFindAndModify: false,
+			useUnifiedTopology: true
+		});
+		if (database === null) throw new Error('No connection');
 
-    const payload = {
-      user: {
-        id: user.id
-      }
-    };
+		console.log('MongoDB connected');
+	} catch (err) {
+		console.error(err.message);
+		res.status(500).json({ msg: err.message });
+		return;
+	}
+*/
+	const { password, email, name, age } = req.body;
 
-    jwt.sign(
-      payload,
-      process.env.JWT_SECRET,
-      { expiresIn: 30000000 },
-      (err, token) => {
-        if (err) throw err;
-        return res.json({ token: token });
-      }
-    );
-  } catch (e) {
-    console.log(e.message);
-    res.status(500).json({ msg: e.message });
-  }
+	try {
+		const v = new Validator(req.body, {
+			email: 'required|email',
+			password: 'required',
+			age: 'required|numeric',
+			name: 'required|alpha'
+		});
+		const matched = await v.check();
+		if (!matched) {
+			res.status(500).json(v.errors);
+			return;
+		}
+	} catch (e) {
+		console.log(e.message);
+		res.status(500).json({ msg: e.message });
+		return;
+	}
+	try {
+		var hashedPassword = bcrypt.hashSync(password, salt);
+		const user = new User({
+			email: email,
+			password: hashedPassword,
+			name: name,
+			age: age
+		});
+		await user.save();
+
+		const payload = {
+			id: user.id
+		};
+
+		const token = jwt.sign(payload, process.env.JWT_SECRET, {
+			expiresIn: 300000000
+		});
+		res.json({ msg: token });
+	} catch (e) {
+		console.log(e.message);
+		res.status(500).json({ msg: e.message });
+	}
+	await database.closeConnection(db);
+	// db.disconnect(() => console.log('Disconnected from MongoDB'));
 });
 
-router.get("/test", async (req, res) => {
-  const error = new errors.CustomError("This is a new error");
-  console.log(error.message);
-  if (error instanceof errors.CustomError) console.log("Yes");
-  else console.log("False");
+router.delete('/delete', tokenAuthorizer, async (req, res) => {
+	const userID = req.id;
 
-  const a = 35;
-  const s = `I am ${a} today`;
-  res.json(s);
+	try {
+		const db = await database.openConnection();
+		await User.deleteOne({ _id: userID });
+		console.log('DELETED');
+		res.json({ msg: true });
+	} catch (e) {
+		console.log(e.message);
+		res.json({ msg: e.message });
+	}
+	await database.closeConnection(db);
+});
+
+router.get('/testauth', tokenAuthorizer, async (req, res) => {
+	res.json(true);
+});
+router.get('/test', async (req, res) => {
+	res.json({ msg: 'reached test' });
 });
 
 module.exports = router;

@@ -2,7 +2,7 @@ const User = require("../models/User");
 const { Validator } = require("node-input-validator");
 const errors = require("../errors/errors");
 
-exports.checkIfActiveUser = async function(id) {
+exports.checkIfValidUser = async function(id) {
   const user = await User.findOne({ _id: id });
 
   if (user.activated === null || user.activated === false)

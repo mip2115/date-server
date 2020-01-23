@@ -9,10 +9,13 @@ class UserNotVisible extends Error {}
 
 class UserNotVerified extends Error {}
 
+class UserNotFoundError extends Error {}
+
 module.exports = {
   CustomError,
   UserNotActiveError,
   NoLocationError,
   UserNotVisible,
-  UserNotVerified
+  UserNotVerified,
+  UserNotFoundError
 };
