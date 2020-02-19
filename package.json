@@ -5,8 +5,10 @@
 	"main": "server.js",
 	"scripts": {
 		"server": "nodemon server",
-		"test": "mocha --timeout 10000",
-		"dev": "nodemon -r dotenv/config server --dev"
+
+		"testServer": "nodemon -r dotenv/config server --test",
+		"dev": "nodemon -r dotenv/config server --dev",
+		"test": "mocha --timeout 10000"
 	},
 	"keywords": [],
 	"author": "",

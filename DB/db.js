@@ -20,7 +20,8 @@ const openConnection = async () => {
 		return db;
 	} catch (e) {
 		console.log(e.message);
-		return new Error('Could not connect to database');
+		process.exit(1);
+		// return new Error('Could not connect to database');
 	}
 };
 
@@ -30,7 +31,8 @@ const closeConnection = async (db) => {
 		db.disconnect(() => console.log('Disconnected from MongoDB'));
 	} catch (e) {
 		console.log(e.message);
-		return new Error('Could not disconnect from database');
+		process.exit(1);
+		// return new Error('Could not disconnect from database');
 	}
 };
 

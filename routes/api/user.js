@@ -108,7 +108,7 @@ router.post('/validate', tokenAuthorizer, async (req, res) => {
 			return;
 		}
 
-		const db = await database.openConnection();
+		// const db = await database.openConnection();
 		if (articles.length != 3) throw new Error('Only 3 articles allowed');
 		//if (profilePictures.length != 5) throw new Error("Only 5 pictures allowed");
 		if (gender != types.MAN && gender != types.WOMAN) throw new Error('Gender type not allowed');
@@ -191,33 +191,9 @@ router.post('/login', async (req, res) => {
 });
 
 router.post('/create', async (req, res) => {
-	const db = await database.openConnection();
-	// get this info and then validate rest of the info
-	// with antoher info
-
-	// connect with DB
-	/*
-	let database = null;
-	try {
-		const db = conf.MONGO_URI;
-		console.log('Connecting to DB...');
-		database = await mongoose.connect(db, {
-			useNewUrlParser: true,
-			useCreateIndex: true,
-			useFindAndModify: false,
-			useUnifiedTopology: true
-		});
-		if (database === null) throw new Error('No connection');
-
-		console.log('MongoDB connected');
-	} catch (err) {
-		console.error(err.message);
-		res.status(500).json({ msg: err.message });
-		return;
-	}
-*/
 	const { password, email, name, age } = req.body;
 
+	const db = await database.openConnection();
 	try {
 		const v = new Validator(req.body, {
 			email: 'required|email',
@@ -228,14 +204,8 @@ router.post('/create', async (req, res) => {
 		const matched = await v.check();
 		if (!matched) {
 			res.status(500).json(v.errors);
-			return;
+			throw new Error('validation error');
 		}
-	} catch (e) {
-		console.log(e.message);
-		res.status(500).json({ msg: e.message });
-		return;
-	}
-	try {
 		var hashedPassword = bcrypt.hashSync(password, salt);
 		const user = new User({
 			email: email,
@@ -253,19 +223,20 @@ router.post('/create', async (req, res) => {
 			expiresIn: 300000000
 		});
 		res.json({ msg: token });
+		//await database.closeConnection(db);
 	} catch (e) {
 		console.log(e.message);
 		res.status(500).json({ msg: e.message });
+		await database.closeConnection(db);
 	}
 	await database.closeConnection(db);
-	// db.disconnect(() => console.log('Disconnected from MongoDB'));
 });
 
 router.delete('/delete', tokenAuthorizer, async (req, res) => {
 	const userID = req.id;
 
+	let db = await database.openConnection();
 	try {
-		const db = await database.openConnection();
 		await User.deleteOne({ _id: userID });
 		console.log('DELETED');
 		res.json({ msg: true });

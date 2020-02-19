@@ -2,8 +2,13 @@ const conf = {
 	MONGO_URI: null
 };
 const setConfig = (config) => {
-	if (config.test) conf.MONGO_URI = process.env.MONGO_TEST_URI;
-	else if (config.dev) conf.MONGO_URI = process.env.MONGO_DEV_URI;
+	if (config.test) {
+		conf.MONGO_URI = process.env.MONGO_TEST_URI;
+		conf.PORT = process.env.TEST_PORT;
+	} else if (config.dev) {
+		conf.MONGO_URI = process.env.MONGO_DEV_URI;
+		conf.PORT = process.env.PORT;
+	}
 };
 
 module.exports = {

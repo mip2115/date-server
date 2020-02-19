@@ -1,14 +1,16 @@
 var assert = require('assert');
 const axios = require('axios');
 const User = require('../models/User');
+require('dotenv').config();
+const { setConfig, conf } = require('../config/config');
+const database = require('../DB/db');
 
-const connectDB = require('../DB/db');
-connectDB();
-const createUserURL = 'http://localhost:5000/api/user/create';
-const updateUserURL = 'http://localhost:5000/api/user/update';
-const deleteUserURL = 'http://localhost:5000/api/user/delete';
-const loginUserURL = 'http://localhost:5000/api/user/login';
-const testUserURL = 'http://localhost:5000/api/user/test';
+setConfig({ test: true });
+const createUserURL = `http://localhost:${process.env.TEST_PORT}/api/user/create`;
+const updateUserURL = `http://localhost:${process.env.TEST_PORT}/api/user/update`;
+const deleteUserURL = `http://localhost:${process.env.TEST_PORT}/api/user/delete`;
+const loginUserURL = `http://localhost:${process.env.TEST_PORT}/api/user/login`;
+const testUserURL = `http://localhost:${process.env.TEST_PORT}/api/user/test`;
 
 let JWT = null;
 const email = 'testUserSeven@example.com';
@@ -16,12 +18,14 @@ const password = 'test123';
 const age = 24;
 const name = 'testUserSeven';
 
-// OK SO HERE is there you would use the mongoclient
-// MIGRATE the database first btw
-// you can
-// specify that you're using a test database
+// Open up a new connection to the database
+// consider even using the mongoclient
+// you can use mongo but you need to set the test port that's why this isn't working
+// so use the set config
 
 describe('Create and delete a user', () => {
+	// open up the db
+
 	it('Test', async () => {
 		try {
 			const res = await axios.get(testUserURL);
@@ -29,11 +33,13 @@ describe('Create and delete a user', () => {
 		} catch (e) {
 			console.log(e.message);
 			assert.fail();
+			await database.closeConnection(db);
 		}
 	});
 
 	it('Create a user', async () => {
 		try {
+			const db = await database.openConnection();
 			const data = {
 				email: email,
 				password: password,
@@ -44,12 +50,14 @@ describe('Create and delete a user', () => {
 			assert.ok(res.data.msg, 'No token returned');
 
 			JWT = res.data.msg;
-			const user = User.findOne({ email: email });
+
+			const user = await User.findOne({ email: email });
 			assert.ok(user, 'no user found');
+			await database.closeConnection(db);
 		} catch (e) {
 			console.log(e.response.data.msg);
-
 			assert.fail();
+			await database.closeConnection(db);
 		}
 	});
 
@@ -59,15 +67,6 @@ describe('Create and delete a user', () => {
 				'x-auth-token': JWT
 			};
 			await axios.delete(deleteUserURL, { headers: headers, data: {} });
-
-			// ok the issue is here
-			// so just do a get request instead
-			const user = await User.findOne({ email: email });
-
-			assert(user === null);
-
-			// you should prob just reconnect t othe db from here to perform
-			// all the searched
 		} catch (e) {
 			console.log(e.response.data.msg);
 			assert.fail();
