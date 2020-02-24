@@ -63,10 +63,6 @@ const UserSchema = new mongoose.Schema({
 	gender: {
 		type: String
 	},
-	activated: {
-		type: Boolean,
-		default: false
-	},
 	longitude: {
 		type: String
 	},

@@ -1,10 +1,10 @@
 const express = require('express');
 const bodyParser = require('body-parser');
-const connectDB = require('./DB/db');
+
 const program = require('commander');
 const { setConfig, conf } = require('./config/config');
 //const conf = require('./config/config');
-
+const database = require('./DB/db');
 require('dotenv').config();
 
 const app = express();
@@ -32,5 +32,7 @@ app.use('/api/search', require('./routes/api/matching'));
 app.use('/api/user', require('./routes/api/user'));
 app.use('/api/images', require('./routes/api/images'));
 
+const db = database.openConnection();
 const PORT = conf.PORT;
+
 app.listen(PORT, () => console.log(`Server started on port ${conf.PORT}`));

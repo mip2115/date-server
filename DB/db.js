@@ -17,6 +17,7 @@ const openConnection = async () => {
 			useFindAndModify: false,
 			useUnifiedTopology: true
 		});
+		console.log('Connection is green');
 		return db;
 	} catch (e) {
 		console.log(e.message);
