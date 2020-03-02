@@ -254,7 +254,6 @@ router.post('/toggleVisibility', tokenAuthorizer, async (req, res) => {
 	try {
 		const user = await User.findOne({ _id: userID });
 		if (!toggle) {
-			console.log('IT IS FALSE');
 			user.visible = false;
 		} else {
 			user.visible = true;

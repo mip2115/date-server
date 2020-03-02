@@ -28,9 +28,10 @@ app.use(
 	})
 );
 
-app.use('/api/search', require('./routes/api/matching'));
+app.use('/api/search', require('./routes/api/match'));
 app.use('/api/user', require('./routes/api/user'));
 app.use('/api/images', require('./routes/api/images'));
+app.use('/api/match', require('./routes/api/match'));
 
 const db = database.openConnection();
 const PORT = conf.PORT;

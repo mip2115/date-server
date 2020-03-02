@@ -2,12 +2,13 @@
 
 const express = require('express');
 const { checkIfValidUser } = require('../../validate/active');
-
+const { matchServices } = require('../../services/chatMessage');
 const errors = require('../../errors/errors');
 const User = require('../../models/User');
 const Match = require('../../models/Match');
 const tokenAuthorizer = require('../../middleware/auth');
 const _ = require('lodash');
+const axios = require('axios');
 
 const router = express.Router();
 // get the POSSIBLE candidates and limit them to 3
@@ -18,6 +19,9 @@ router.get('/test', tokenAuthorizer, async (req, res) => {
 	res.json('SUCCESS');
 });
 
+// test this by basically saying if you're in a certain zipcode
+// and have marked 2 mi away, you should get x amount of candidates
+// if you marked 5 mi away you should get another amount of candidates
 router.get('/getCandidates', tokenAuthorizer, async (req, res) => {
 	const userID = req.id;
 
@@ -74,49 +78,51 @@ router.get('/getCandidates', tokenAuthorizer, async (req, res) => {
 // you should place rejects in another array and display
 // only if they are not in that array
 router.post('/like', tokenAuthorizer, async (req, res) => {
-	await checkIfValidUser(userID);
 	// get the ID of the person you liked and createa  new match
 	const { likedID } = req.body;
 	const userID = req.id;
 
 	try {
+		// TODO - make sure it works with validation
+		//await checkIfValidUser(userID);
 		const userA = await User.findOne({ _id: userID });
 
 		const userB = await User.findOne({ _id: likedID });
 		if (!userA) throw new errors.UserNotFoundError(`user ${userID} not found`);
 		if (!userB) throw new errors.UserNotFoundError(`user ${likedID} not found`);
-		const userALikes = userA.liked;
-		const userBLikes = userB.liked;
+		const userALikes = JSON.parse(userA.liked);
+		const userBLikes = JSON.parse(userB.liked);
 
-		const alreadyLiked = _.includes(userALikes, likedID);
-		if (alreadyLiked) throw new Error('Already liked this user');
+		const AalreadyLikedB = _.includes(userALikes, likedID);
+		if (AalreadyLikedB) throw new Error('Already liked this user');
 		userALikes.push(likedID);
 
 		// TODO – one user still has the other liked at the end of
 		// making a match, so check into that.
 		// now check if they also liked the user
-		const included = _.includes(userBLikes, userID);
-		if (included) {
+		const BlikedA = _.includes(userBLikes, userID);
+		if (BlikedA) {
 			// ok so first remove it from the likes
 			_.pull(userALikes, likedID);
 			_.pull(userBLikes, userID);
 
-			userA.liked = userALikes;
-			userB.liked = userBLikes;
+			userA.liked = JSON.stringify(userALikes);
+			userB.liked = JSON.stringify(userBLikes);
 			await userA.save();
 			await userB.save();
 
 			// now create a match out of both of these users
-			const matchFields = {};
-			matchFields.users = [ userID, likedID ];
-			const match = new Match(matchFields);
-			await match.save();
-			userA.matches.push(match.id);
-			userB.matches.push(match.id);
-			await userA.save();
-			await userB.save();
+			// await createMatch(userA, userB);
+			let payload = {
+				userA_ID: userID,
+				userB_ID: likedID
+			};
 
-			// userA.matches.push()
+			// okay now create the match
+			// TODO – make this a bit more fluid
+			const CREATE_MATCH_URL = `http://localhost:${process.env.TEST_PORT}/api/match/createMatch`;
+			const result = await axios.post(CREATE_MATCH_URL, payload);
+			if (!result.data.result) throw new Error('Problem creating the match');
 
 			// so in this case make a match
 			// also take both ID's out of the likes array
@@ -126,14 +132,16 @@ router.post('/like', tokenAuthorizer, async (req, res) => {
 			// contain the same ID's.
 			// so make sure you account for that.
 			// ACTUALLY keep candidates until the next interval
+			res.json({ msg: { userA: result.data.userA, userB: result.data.userB }, result: true });
 		} else {
-			userA.liked = userALikes;
+			userA.liked = JSON.stringify(userALikes);
+
 			await userA.save();
+			res.json({ msg: { userA: userA, userB: userB }, result: true });
 		}
-		res.json({ userA: userA, userB: userB });
 	} catch (e) {
 		console.log(e.message);
-		res.status(500).json({ msg: e.message });
+		res.json({ msg: e.message, result: false });
 	}
 
 	// add the likedUser to the user's list of likes.
@@ -144,9 +152,98 @@ router.post('/like', tokenAuthorizer, async (req, res) => {
 	// if so, generate a new match and add that to both of their matches
 });
 
+// TODO - figure out how to get only 10 at a time or so.
+// do it by index so if you have 10 messages, then you just need the next 10, yeah?
+router.get('getMessages', async (req, res) => {});
+router.post('/addMessage', async (req, res) => {
+	const { messageContent, sender, matchID } = req.body;
+
+	try {
+		const match = await Match.findOne({ _id: matchID });
+		if (!match) throw new Error('Match not found');
+		const msgs = JSON.parse(match.messages);
+
+		// TODO – you need to use an interface here
+
+		const message = {
+			content: messageContent,
+			sender: sender,
+			date: Date.now()
+		};
+		msgs.push(message);
+		match.messages = JSON.stringify(msgs);
+		await match.save();
+		res.json({ msg: match, result: true });
+	} catch (e) {
+		console.log(e.message);
+		res.json({ error: e.message, result: false });
+	}
+});
+
+router.post('/createMatch', async (req, res) => {
+	const { userA_ID, userB_ID } = req.body;
+
+	try {
+		const matchFields = {};
+		const userA = await User.findOne({ _id: userA_ID });
+		const userB = await User.findOne({ _id: userB_ID });
+
+		matchFields.userA = userA_ID;
+		matchFields.userB = userB_ID;
+
+		const match = new Match(matchFields);
+
+		await match.save();
+
+		const userAMatches = JSON.parse(userA.matches);
+		const userBMatches = JSON.parse(userB.matches);
+		userAMatches.push(match.id);
+		userBMatches.push(match.id);
+		userA.matches = JSON.stringify(userAMatches);
+		userB.matches = JSON.stringify(userBMatches);
+		await userA.save();
+		await userB.save();
+		res.json({ msg: { userA: userA, userB: userB, match: match }, result: true });
+	} catch (e) {
+		console.log(e.message);
+		res.json({ result: false, error: e.message });
+	}
+});
+
+router.post('/deleteMatch', async (req, res) => {
+	const { matchID } = req.body;
+
+	try {
+		const match = await Match.findOne({ _id: matchID });
+		if (!match) throw new Error("Couldn't find the match");
+
+		const userA = await User.findOne({ _id: match.userA });
+		const userB = await User.findOne({ _id: match.userB });
+		if (!userA) throw new Error('Could not find userA');
+		if (!userB) throw new Error('Could not find userB');
+
+		await Match.deleteOne({ _id: matchID });
+
+		const userAMatches = JSON.parse(userA.matches);
+		const userBMatches = JSON.parse(userB.matches);
+
+		_.pull(userAMatches, matchID);
+		_.pull(userBMatches, matchID);
+
+		userA.matches = JSON.stringify(userAMatches);
+		userB.matches = JSON.stringify(userBMatches);
+		await userA.save();
+		await userB.save();
+		res.json({ msg: { userA: userA, userB: userB }, result: true });
+	} catch (e) {
+		console.log(e.message);
+		res.json({ result: false, error: e.message });
+	}
+});
+
 // be able to delete the match
 router.post('/unmatch', tokenAuthorizer, async (req, res) => {
-	await checkIfValidUser(userID);
+	//await checkIfValidUser(userID);
 	const userID = req.id;
 	const { matchID } = req.body;
 

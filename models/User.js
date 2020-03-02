@@ -19,7 +19,7 @@ const UserSchema = new mongoose.Schema({
 	age: {
 		type: Number
 	},
-	pictures: [],
+	pictures: { type: String, default: `["", "", "", ""]` }, // make this a string array
 	chats: {
 		type: [ String ],
 		default: []
@@ -77,11 +77,13 @@ const UserSchema = new mongoose.Schema({
 		type: [ String ] // potentital matches
 	},
 	liked: {
-		type: [ String ] // liked candidates
+		type: String, // liked candidates,
+		default: `[]`
 	},
 	matches: {
 		// UUID's of the matches
-		type: [ String ]
+		type: String,
+		default: `[]`
 	},
 
 	// so you should get a list of good candidates

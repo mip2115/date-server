@@ -116,20 +116,27 @@ router.delete('/deleteImage', tokenAuthorizer, async (req, res) => {
 // @desc    Upload image to user's account
 // access   Private
 router.post('/uploadImage', tokenAuthorizer, async (req, res) => {
-	const { rank, base64 } = req.body;
+	let { rank, base64 } = req.body;
 	const userID = req.id;
 
 	// TODO - convert images to JPG if not already
 	try {
+		rank = Number(rank);
 		const imageID = uuidv4();
 		let buff = new Buffer(base64, 'base64');
 		const key = `public/${userID}/${imageID}.jpg`;
 
-		const user = await User.findOne({ _id: userID });
-		const images = user.pictures;
-		const containsRank = images.some((image) => image.rank == rank);
+		let user = await User.findOne({ _id: userID });
+		if (!user) throw new Error('Could not find user');
 
-		if (containsRank) throw new Error('Rank already exists');
+		let images = JSON.parse(user.pictures);
+
+		/*
+    const containsRank = images.some((image) => image.rank == rank);
+    
+
+    if (containsRank) throw new Error('Rank already exists');
+    */
 
 		// TODO – verify it actuall is a jpeg
 		var params = {
@@ -141,16 +148,21 @@ router.post('/uploadImage', tokenAuthorizer, async (req, res) => {
 
 		const link = `${process.env.BUCKET_NAME}.s3.amazonaws.com/${key}`;
 		const result = await uploadProfilePictureToS3(params);
+		//const profilePicture = new types.Picture(imageID, rank, link, key);
+
 		const profilePicture = {
 			imageID: imageID,
 			rank: rank,
 			link: link,
 			key: key
 		};
-		user.pictures.push(profilePicture);
-
+		//images[rank] = profilePicture;
+		images[rank] = profilePicture;
+		//user.pictures[rank] = JSON.stringify(profilePicture);
+		user.pictures = JSON.stringify(images);
 		await user.save();
-		res.json({ msg: user });
+
+		res.json({ msg: user, result: true });
 	} catch (e) {
 		console.log(e.message);
 		res.status(500).json({ msg: e.message });

@@ -17,6 +17,15 @@ module.exports.TemporaryBlockedUser = class {
 	}
 };
 
+module.exports.Picture = class {
+	constructor(link, key, imageID, rank) {
+		this.imageID = imageID;
+		this.rank = rank;
+		this.link = link;
+		this.key = key;
+	}
+};
+
 module.exports.MEN = 'MEN';
 module.exports.WOMEN = 'WOMEN';
 module.exports.BOTH = 'BOTH';

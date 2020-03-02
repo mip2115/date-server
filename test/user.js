@@ -7,7 +7,6 @@ const database = require('../DB/db');
 const fs = require('fs');
 const path = require('path');
 
-setConfig({ test: true });
 const createUserURL = `http://localhost:${process.env.TEST_PORT}/api/user/create`;
 const updateUserURL = `http://localhost:${process.env.TEST_PORT}/api/user/updateInfo`;
 const deleteUserURL = `http://localhost:${process.env.TEST_PORT}/api/user/delete`;
@@ -281,15 +280,31 @@ describe('User operations', () => {
 			};
 
 			// read in the file
-			const filePath = path.resolve(__dirname, 'images/image.txt');
-			console.log(filePath);
+			let filePath = path.resolve(__dirname, 'images/image.txt');
 			var content = fs.readFileSync(filePath, 'utf8');
 			let payload = {
 				base64: content,
-				rank: 1
+				rank: 0
 			};
 
 			res = await axios.post(uploadImageURL, payload, config);
+			let pictures = JSON.parse(res.data.msg.pictures);
+			//assert.equal(res.data.msg.pictures.length, 4, 'something went wrong with picture upload');
+			assert.notEqual(res.data.msg.pictures[0], '', 'something went wrong with picture upload');
+
+			filePath = path.resolve(__dirname, 'images/image1.txt');
+			content = fs.readFileSync(filePath, 'utf8');
+			payload = {
+				base64: content,
+				rank: 2
+			};
+
+			res = await axios.post(uploadImageURL, payload, config);
+			pictures = JSON.parse(res.data.msg.pictures);
+			//assert.equal(res.data.msg.pictures.length, 4, 'something went wrong with picture upload');
+			assert.notEqual(res.data.msg.pictures[2], '', 'something went wrong with picture upload');
+			const pics = JSON.parse(res.data.msg.pictures);
+			//.log(pics);
 		} catch (e) {
 			console.log(e);
 			assert.fail();
