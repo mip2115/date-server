@@ -75,40 +75,31 @@ router.post('/replaceImage', tokenAuthorizer, async (req, res) => {
 // @desc    Delete image from user's account
 // access   Private
 router.delete('/deleteImage', tokenAuthorizer, async (req, res) => {
-	const { rank } = req.body;
+	let { rank } = req.body;
 	const userID = req.id;
 
 	try {
+		rank = Number(rank);
 		const user = await User.findOne({ _id: userID });
-		const containsRank = user.pictures.some((image) => image.rank == rank);
+		let images = JSON.parse(user.pictures);
+		const containsRank = images.some((image) => image.rank == rank);
 		if (!containsRank) throw new Error("Image doesn't exist");
 
-		let image = null;
-		user.pictures.map((i) => {
-			if (i.rank == rank) {
-				image = i;
-			}
-		});
-		if (image == null) throw new Error("Couldn't find the image");
-
+		let image = images[rank];
 		const params = {
 			Bucket: process.env.BUCKET_NAME,
 			Key: image.key
 		};
 
 		const result = await deleteProfilePictureFromS3(params);
-		const pics = [];
-		user.pictures.map((image) => {
-			if (image.rank != rank) pics.push(image);
-		});
-
-		user.pictures = pics;
+		images.splice(rank, 1);
+		user.pictures = images;
 
 		await user.save();
-		res.json({ msg: user });
+		res.json({ msg: user, result: true });
 	} catch (e) {
 		console.log(e.message);
-		res.status(500).json({ msg: e.message });
+		res.status(500).json({ error: e.message, result: false });
 	}
 });
 
@@ -162,7 +153,7 @@ router.post('/uploadImage', tokenAuthorizer, async (req, res) => {
 		user.pictures = JSON.stringify(images);
 		await user.save();
 
-		res.json({ msg: user, result: true });
+		res.json({ msg: profilePicture, result: true });
 	} catch (e) {
 		console.log(e.message);
 		res.status(500).json({ msg: e.message });

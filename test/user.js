@@ -16,6 +16,8 @@ const testTokenURL = `http://localhost:${process.env.TEST_PORT}/api/user/testaut
 const validateURL = `http://localhost:${process.env.TEST_PORT}/api/user/validate`;
 const toggleVisibilityURL = `http://localhost:${process.env.TEST_PORT}/api/user/toggleVisibility`;
 const uploadImageURL = `http://localhost:${process.env.TEST_PORT}/api/images/uploadImage`;
+const deleteImageURL = `http://localhost:${process.env.TEST_PORT}/api/images/deleteImage`;
+
 /*
 let db = null;
 before(async function() {
@@ -259,7 +261,7 @@ describe('User operations', () => {
 		}
 	});
 
-	it('Add picture of user', async () => {
+	it('Add picture of user & delete', async () => {
 		try {
 			let data = {
 				email: 'testUserSeven@example.com',
@@ -288,9 +290,10 @@ describe('User operations', () => {
 			};
 
 			res = await axios.post(uploadImageURL, payload, config);
-			let pictures = JSON.parse(res.data.msg.pictures);
-			//assert.equal(res.data.msg.pictures.length, 4, 'something went wrong with picture upload');
-			assert.notEqual(res.data.msg.pictures[0], '', 'something went wrong with picture upload');
+			user = await User.findOne({ email: 'testUserSeven@example.com' });
+			let pictures = JSON.parse(user.pictures);
+
+			assert.notEqual(pictures[0], '', 'something went wrong with picture upload');
 
 			filePath = path.resolve(__dirname, 'images/image1.txt');
 			content = fs.readFileSync(filePath, 'utf8');
@@ -300,11 +303,18 @@ describe('User operations', () => {
 			};
 
 			res = await axios.post(uploadImageURL, payload, config);
-			pictures = JSON.parse(res.data.msg.pictures);
-			//assert.equal(res.data.msg.pictures.length, 4, 'something went wrong with picture upload');
-			assert.notEqual(res.data.msg.pictures[2], '', 'something went wrong with picture upload');
-			const pics = JSON.parse(res.data.msg.pictures);
-			//.log(pics);
+
+			user = await User.findOne({ email: 'testUserSeven@example.com' });
+			let pictures = JSON.parse(user.pictures);
+
+			assert.notEqual(pictures[2], '', 'something went wrong with picture upload');
+
+			// okay now delete
+
+			let key = user.pictures[0].key;
+			payload = {
+				rank: 1
+			};
 		} catch (e) {
 			console.log(e);
 			assert.fail();

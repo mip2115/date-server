@@ -288,7 +288,7 @@ describe('match functionality', () => {
 		}
 	});
 
-	it('like a user', async () => {
+	it('like a user and delete a match', async () => {
 		try {
 			let userAData = {
 				email: 'testUserSeven@example.com',
@@ -350,6 +350,32 @@ describe('match functionality', () => {
 
 			assert.equal(userAMatches.length, 1, 'problem liking user');
 			assert.equal(userBMatches.length, 1, 'problem liking user');
+
+			const matchID = userAMatches[0];
+			payload = {
+				matchID: matchID
+			};
+
+			// okay now delete it
+			result = await axios.post(deleteMatchURL, payload);
+			let matchFound = await Match.findOne({ _id: matchID });
+			assert.ok(!matchFound, 'Found deleted match');
+
+			userA = await User.findOne({ _id: userAPkg.user._id });
+			userB = await User.findOne({ _id: userBPkg.user._id });
+			userAMatches = JSON.parse(userA.matches);
+			userBMatches = JSON.parse(userB.matches);
+
+			assert.equal(userAMatches.length, 0, 'problem deleting match');
+			assert.equal(userBMatches.length, 0, 'problem deleting match');
+		} catch (e) {
+			console.log(e.message);
+			assert.fail();
+		}
+	});
+
+	it('Like and delete a match', async () => {
+		try {
 		} catch (e) {
 			console.log(e.message);
 			assert.fail();
