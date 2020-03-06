@@ -92,8 +92,9 @@ router.delete('/deleteImage', tokenAuthorizer, async (req, res) => {
 		};
 
 		const result = await deleteProfilePictureFromS3(params);
-		images.splice(rank, 1);
-		user.pictures = images;
+		images[rank] = '';
+		//simages.splice(rank, 1);
+		user.pictures = JSON.stringify(images);
 
 		await user.save();
 		res.json({ msg: user, result: true });
@@ -121,13 +122,6 @@ router.post('/uploadImage', tokenAuthorizer, async (req, res) => {
 		if (!user) throw new Error('Could not find user');
 
 		let images = JSON.parse(user.pictures);
-
-		/*
-    const containsRank = images.some((image) => image.rank == rank);
-    
-
-    if (containsRank) throw new Error('Rank already exists');
-    */
 
 		// TODO – verify it actuall is a jpeg
 		var params = {

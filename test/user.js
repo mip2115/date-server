@@ -261,7 +261,7 @@ describe('User operations', () => {
 		}
 	});
 
-	it.skip('Add picture of user & delete', async () => {
+	it('Add picture of user & delete', async () => {
 		try {
 			let data = {
 				email: 'testUserSeven@example.com',
@@ -305,18 +305,53 @@ describe('User operations', () => {
 			res = await axios.post(uploadImageURL, payload, config);
 
 			user = await User.findOne({ email: 'testUserSeven@example.com' });
-			/*
-			let pictures = JSON.parse(user.pictures);
+
+			pictures = JSON.parse(user.pictures);
 
 			assert.notEqual(pictures[2], '', 'something went wrong with picture upload');
 
 			// okay now delete
 
-			let key = user.pictures[0].key;
-			payload = {
-				rank: 1
+			/*
+			config = {
+				headers: {
+					'x-auth-token': JWT
+				}
 			};
 			*/
+
+			let key = user.pictures[0].key;
+			payload = {
+				rank: 0
+			};
+
+			res = await axios.delete(deleteImageURL, {
+				headers: {
+					'x-auth-token': JWT
+				},
+				data: {
+					rank: 0
+				}
+			});
+
+			//res = await axios.delete(deleteImageURL, payload, config);
+			user = await User.findOne({ email: 'testUserSeven@example.com' });
+			pictures = JSON.parse(user.pictures);
+
+			assert.equal(pictures[0], '', 'something went wrong with picture upload');
+
+			res = await axios.delete(deleteImageURL, {
+				headers: {
+					'x-auth-token': JWT
+				},
+				data: {
+					rank: 2
+				}
+			});
+			user = await User.findOne({ email: 'testUserSeven@example.com' });
+			pictures = JSON.parse(user.pictures);
+
+			assert.equal(pictures[2], '', 'something went wrong with picture upload');
 		} catch (e) {
 			console.log(e);
 			assert.fail();
